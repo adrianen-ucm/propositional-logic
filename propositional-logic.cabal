@@ -1,0 +1,51 @@
+cabal-version:      2.4
+
+name:               propositional-logic
+version:            1.0.0.0
+synopsis:
+description:        A project to review some fundamental concepts about logic 
+                    and deduction systems in a simple way, test them with 
+                    QuickCheck and experiment with type level programming.
+
+license:            NONE
+author:             Adrián Enríquez Ballester
+maintainer:         adrianen@ucm.es
+
+extra-source-files: README.md
+
+library
+    exposed-modules:  NaturalDeduction
+                    , Semantics
+                    , Syntax
+    hs-source-dirs:   src
+    ghc-options:      -Wall -O2
+    default-language: Haskell2010
+    build-depends:    base ^>=4.14.3.0
+                    , containers
+
+executable type-level-experiment
+    main-is:          type-level-experiment.hs
+    ghc-options:      -Wall -O2
+    default-language: Haskell2010
+    other-extensions: DataKinds
+                    , FlexibleInstances
+                    , GADTs
+                    , IncoherentInstances
+                    , MultiParamTypeClasses
+                    , StandaloneDeriving
+                    , TypeFamilies
+                    , UndecidableInstances
+    build-depends:    base ^>=4.14.3.0
+
+test-suite tests
+    type:             exitcode-stdio-1.0
+    main-is:          Main.hs
+    other-modules:    Test.Prop
+    hs-source-dirs:   test
+    ghc-options:      -Wall -O2
+    default-language: Haskell2010
+    other-extensions: TemplateHaskell
+    build-depends:    base ^>=4.14.3.0
+                    , propositional-logic
+                    , containers
+                    , QuickCheck
