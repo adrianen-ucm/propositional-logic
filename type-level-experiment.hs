@@ -1,7 +1,6 @@
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE IncoherentInstances   #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TypeFamilies          #-}
@@ -9,8 +8,21 @@
 
 module Main where
 
+import           Unsafe.Coerce (unsafeCoerce)
+
 main :: IO ()
-main = putStrLn "TODO an example"
+main = do
+    putStrLn "The following proof:"
+    print proof
+    putStr "derives "
+    print $ conclusion proof
+    if anyOpenAssumption proof
+      then putStrLn "but it has undischarged assumptions."
+      else putStrLn "with all its assumptions discharged."
+  where
+    a = Ato "a"
+    b = Con a (Neg a)
+    proof = NegI b (NegE (ConEL (Assumption b)) (ConER (Assumption b)))
 
 -- * Syntax
 
@@ -35,14 +47,24 @@ deriving instance Eq v => Eq (Prop s v)
 
 deriving instance Show v => Show (Prop s v)
 
-class PropsEq (p :: PropT) (q :: PropT) where
-  propsEq :: Eq v => Prop p v -> Prop q v -> Bool
+-- | Equality of propositions regardless of their shape. The
+-- @unsafeCoerce@ can be justified because @p@ and @q@ are
+-- phantom type parameters. I have tried to avoid this with
+-- a multi-param type class and overlapping instances with
+-- no success.
+propsEq :: Eq v => Prop p v -> Prop q v -> Bool
+propsEq p q = p == unsafeCoerce q
 
-instance PropsEq s s where
-  propsEq = (==)
+-- | As the type of a proposition is not aware of atom
+-- names, this property involves a runtime check.
+class Contradicts (p :: PropT) (q :: PropT) where
+  contradicts :: Eq v => Prop p v -> Prop q v -> Bool
 
-instance PropsEq s1 s2 where
-  propsEq _ _ = False
+instance Contradicts ('NegT p) p where
+  contradicts (Neg p) q = p == q
+
+instance Contradicts p ('NegT p) where
+  contradicts p (Neg q) = p == q
 
 -- | A data type to be promoted to the kind level
 -- for specifying the shape of an heterogeneous list of
@@ -83,7 +105,7 @@ data AssumptionsT
 data Proof (a :: AssumptionsT) (s :: PropT) v where
   Assumption :: Prop s v -> Proof ('OpenT s 'EmptyT) s v
   NegI       :: Prop p v -> Proof a 'BotT v -> Proof ('DischargeT p a) ('NegT p) v
-  NegE       :: Proof a1 p1 v -> Proof a2 p2 v -> Proof ('JoinT a1 a2) 'BotT v
+  NegE       :: Contradicts p1 p2 => Proof a1 p1 v -> Proof a2 p2 v -> Proof ('JoinT a1 a2) 'BotT v
   ConI       :: Proof a1 s1 v -> Proof a2 s2 v -> Proof ('JoinT a1 a2) ('ConT s1 s2) v
   ConEL      :: Proof a ('ConT s1 s2) v -> Proof a s1 v
   ConER      :: Proof a ('ConT s1 s2) v -> Proof a s2 v
@@ -109,7 +131,7 @@ type family Assumptions (a :: AssumptionsT) :: PropListT where
 
 -- | Check if a proposition is an open assumption in
 -- a proof tree.
-isOpenAssumption :: Eq v => Proof a s2 v -> Prop s1 v -> Bool
+isOpenAssumption :: Eq v => Proof a s1 v -> Prop s2 v -> Bool
 isOpenAssumption (Assumption p) q = not $ propsEq p q
 isOpenAssumption (ConI pr1 pr2) q = isOpenAssumption pr1 q || isOpenAssumption pr2 q
 isOpenAssumption (ConEL pr)     q = isOpenAssumption pr q
@@ -126,7 +148,8 @@ anyOpenAssumption pr = go pr $ assumptions pr
     go _ Nil          = False
     go pr' (Cons p l) = isOpenAssumption pr' p || go pr' l
 
--- | Compute the conclusion of a proof.
+-- | Compute the conclusion of a proof. With the current approach,
+-- there are constraints that are not ensured by the defined types.
 conclusion :: Eq v => Proof a s v -> Prop s v
 conclusion (Assumption p) = p
 conclusion (ConI pr1 pr2) = Con (conclusion pr1) (conclusion pr2)
@@ -138,10 +161,7 @@ conclusion (ConER pr)     =
   in q
 conclusion (NegI a _)     = Neg a
 conclusion (NegE pr1 pr2) =
-  let p1 = conclusion pr1
-      p2 = conclusion pr2
-  in case (p1, p2) of
-      (Neg p, q) | propsEq p q -> Bot
-      (p, Neg q) | propsEq p q -> Bot
-      _                        -> error ":("
+  if contradicts (conclusion pr1) (conclusion pr2)
+    then Bot
+    else error "The type does not forbid this case :("
 conclusion (BotE a _)     = a

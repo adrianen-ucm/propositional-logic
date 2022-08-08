@@ -1,31 +1,31 @@
 module Test.Prop where
 
 import qualified Data.Set         as S
-import           NaturalDeduction (Proof (..))
-import           Syntax           (Prop (..), contradicts)
+import qualified NaturalDeduction as Pr
+import qualified Syntax           as P
 import           Test.QuickCheck  (Arbitrary (arbitrary), chooseInt, elements,
                                    oneof, sized)
 
 newtype Name = Name Char
   deriving (Show, Eq, Ord)
 
-newtype PropName = PropName (Prop Name)
+newtype Prop = Prop (P.Prop Name)
   deriving (Show, Eq, Ord)
 
-newtype PropNameSet = PropNameSet (S.Set (Prop Name))
+newtype PropSet = PropSet (S.Set (P.Prop Name))
   deriving (Show, Eq)
 
-newtype ProofName = ProofName (Proof Name, Prop Name)
+newtype Proof = Proof (Pr.Proof Name, P.Prop Name)
   deriving (Show, Eq)
 
 instance Arbitrary Name where
   arbitrary = Name <$> elements ['a'..'j']
 
-instance Arbitrary PropName where
-  arbitrary = PropName <$> sized s
+instance Arbitrary Prop where
+  arbitrary = Prop <$> sized s
     where
-      bot = pure Bot
-      ato = Ato <$> arbitrary
+      bot = pure P.Bot
+      ato = P.Ato <$> arbitrary
       s n
         | n <= 0    = bot
         | n == 1    = oneof [bot, ato]
@@ -35,82 +35,82 @@ instance Arbitrary PropName where
             oneof
               [ bot
               , ato
-              , Neg <$> s k1
-              , Con <$> s k1 <*> s k2
-              , Dis <$> s k1 <*> s k2
-              , Imp <$> s k1 <*> s k2
+              , P.Neg <$> s k1
+              , P.Con <$> s k1 <*> s k2
+              , P.Dis <$> s k1 <*> s k2
+              , P.Imp <$> s k1 <*> s k2
               ]
 
-instance Arbitrary PropNameSet where
+instance Arbitrary PropSet where
   arbitrary =
-    PropNameSet .
+    PropSet .
     S.fromList .
-    map (\(PropName p) -> p) <$>
+    map (\(Prop p) -> p) <$>
     arbitrary
 
-instance Arbitrary ProofName where
-  arbitrary = ProofName <$> sized s
+instance Arbitrary Proof where
+  arbitrary = Proof <$> sized s
     where
       propGen = do
-        PropName p <- arbitrary
+        Prop p <- arbitrary
         pure p
 
       assumption = do
           p <- propGen
-          pure (Assumption p, p)
+          pure (Pr.Assumption p, p)
 
       conI n     = do
           k1 <- chooseInt (0, n)
           k2 <- chooseInt (0, n)
           (pr1, p1) <- s k1
           (pr2, p2) <- s k2
-          pure (ConI pr1 pr2, Con p1 p2)
+          pure (Pr.ConI pr1 pr2, P.Con p1 p2)
 
       conEL n    = do
           k <- chooseInt (0, n)
           (pr, p) <- conI k
           pure $ case p of
-            Con pL _ -> (ConEL pr, pL)
-            _        -> error "Not possible"
+            P.Con pL _ -> (Pr.ConEL pr, pL)
+            _          -> error "Not possible"
 
       conER n    = do
           k <- chooseInt (0, n)
           (pr, p) <- conI k
           pure $ case p of
-            Con _ pR -> (ConER pr, pR)
-            _        -> error "Not possible"
+            P.Con _ pR -> (Pr.ConER pr, pR)
+            _          -> error "Not possible"
 
       negI n     = do
           k <- chooseInt (0, n)
           (pr, p) <- s k
           r <- propGen
           pure $ case p of
-            Bot -> (NegI r pr, Neg r)
-            _   -> (NegI r (Assumption Bot), Neg r)
+            P.Bot -> (Pr.NegI r pr, P.Neg r)
+            _     -> (Pr.NegI r (Pr.Assumption P.Bot), P.Neg r)
 
       negE n     = do
           k1 <- chooseInt (0, n)
           k2 <- chooseInt (0, n)
           (pr1, p1) <- s k1
           (pr2, p2) <- s k2
-          if contradicts p1 p2
-            then pure (NegE pr1 pr2, Bot)
+          if P.contradicts p1 p2
+            then pure (Pr.NegE pr1 pr2, P.Bot)
             else elements
-              [ (NegE (Assumption (Neg p2)) pr2, Bot)
-              , (NegE (Assumption (Neg p1)) pr1, Bot)
+              [ (Pr.NegE (Pr.Assumption (P.Neg p2)) pr2, P.Bot)
+              , (Pr.NegE (Pr.Assumption (P.Neg p1)) pr1, P.Bot)
               ]
 
       disIL n     = do
           k <- chooseInt (0, n)
           (pr, p) <- s k
           r <- propGen
-          pure (DisIL r pr, Dis r p)
+          pure (Pr.DisIL r pr, P.Dis r p)
 
       disIR n     = do
           k <- chooseInt (0, n)
           (pr, p) <- s k
           r <- propGen
-          pure (DisIR r pr, Dis p r)
+          pure (Pr.DisIR r pr, P.Dis p r)
 
       disE n     = do
           k1 <- chooseInt (0, n)
@@ -120,12 +120,12 @@ instance Arbitrary ProofName where
           (pr2, p2) <- s k2
           (pr3, p3) <- s k3
           case p1 of
-            Dis _ _ | p2 == p3 ->
-              pure (DisE pr1 pr2 pr3, p2)
-            Dis _ _            ->
+            P.Dis _ _ | p2 == p3 ->
+              pure (Pr.DisE pr1 pr2 pr3, p2)
+            P.Dis _ _            ->
               elements
-                [ (DisE pr1 pr2 pr2, p2)
-                , (DisE pr1 pr3 pr3, p3)
+                [ (Pr.DisE pr1 pr2 pr2, p2)
+                , (Pr.DisE pr1 pr3 pr3, p3)
                 ]
             _                  ->
               error "Not possible"
@@ -134,7 +134,7 @@ instance Arbitrary ProofName where
           k <- chooseInt (0, n)
           (pr, p) <- s k
           r <- propGen
-          pure (ImpI r pr, Imp r p)
+          pure (Pr.ImpI r pr, P.Imp r p)
 
       impE     n = do
         k1 <- chooseInt (0, n)
@@ -142,17 +142,17 @@ instance Arbitrary ProofName where
         (pr1, p1) <- s k1
         (pr2, p2) <- impI k2
         pure $ case p2 of
-          Imp a b | a == p1 -> (ImpE pr1 pr2, b)
-          Imp a b           -> (ImpE (Assumption a) pr2, b)
-          _                 -> error "Not possible"
+          P.Imp a b | a == p1 -> (Pr.ImpE pr1 pr2, b)
+          P.Imp a b           -> (Pr.ImpE (Pr.Assumption a) pr2, b)
+          _                   -> error "Not possible"
 
       botE n     = do
           k <- chooseInt (0, n)
           (pr, p) <- s k
           r <- propGen
           pure $ case p of
-            Bot -> (BotE r pr, r)
-            _   -> (BotE r (Assumption Bot), r)
+            P.Bot -> (Pr.BotE r pr, r)
+            _     -> (Pr.BotE r (Pr.Assumption P.Bot), r)
 
       s n
         | n <= 0    = assumption

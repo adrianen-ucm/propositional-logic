@@ -2,7 +2,6 @@ cabal-version:      2.4
 
 name:               propositional-logic
 version:            1.0.0.0
-synopsis:
 description:        A project to review some fundamental concepts about logic 
                     and deduction systems in a simple way, test them with 
                     QuickCheck and experiment with type level programming.

@@ -2,7 +2,7 @@
 -- Module      : NaturalDeduction
 -- Copyright   : (c) Adrián Enríquez Ballester, 2022
 --
--- The natural deduction derivation system for propositional logic.
+-- A natural deduction derivation system for propositional logic.
 
 module NaturalDeduction
   ( Proof (..)
